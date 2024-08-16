@@ -21,6 +21,49 @@ moduleinfo = {
     'logo': '',
 }
 
+
+def get_value(d, keys, default=-1):
+    """Hilfsfunktion, um verschachtelte Schlüssel sicher zu holen."""
+    for key in keys:
+        d = d.get(key, default)
+        if d == default:
+            break
+    return d
+    
+def value_exists_in_result_data(search_value, result_data):
+    for entry in result_data:
+        if entry.get('values') == search_value:
+            return True
+    return False
+
+
+def identify_hash(hash_value):
+    # Dictionary zum Speichern von möglichen Hash-Längen und deren Typen
+    hash_types = {
+        32: 'md5',
+        40: 'sha1',
+        64: 'sha256',
+        96: 'sha384',
+        128: 'sha512'
+    }
+    
+    # Erkennung von TLSH (length is typically 70+)
+    if re.match(r'^[A-F0-9]{70,}$', hash_value):
+        return 'tlsh'
+    
+    # Erkennung von SSDEEP (contains a ':' character)
+    if ':' in hash_value:
+        return 'ssdeep'
+    
+    # Identifizierung durch Länge des Hash-Werts
+    hash_length = len(hash_value)
+    if hash_length in hash_types:
+        return hash_types[hash_length]
+    
+    # Wenn kein Typ erkannt wird
+    return 'unknown'
+
+
 class ESMISPSYNC:
     def __init__(self, elk_user='elastic', elk_pass='x=JEtzV7CJJIVnSrxn7i', elk_host='172.23.2.20:9200', md5_hash="0006ad7b9f2a9b304e5b3790f6f18807"):
         # Variablen
@@ -94,29 +137,29 @@ class ESMISPSYNC:
             
             if source_key == "malwarebazaar":
                 rest_data = {
-                    "downloads":        d1["intelligence"]["downloads"],
-                    "uploads":          d1["intelligence"]["uploads"],
-                    "tags":             d1["tags"],
-                    "geo":              d2["geo"]["country_iso_code"],
-                    "first-seen":       d2["first_seen"],
-                    "extension":        d2["file"]["extension"],
-                    "size":             d2["file"]["size"],
-                    "mime":             d2["file"]["mime_type"],
-                    "hashes":           d2["file"]["hash"],
-                    "name":             d2["file"]["name"],
-                    "type":             d2["type"],
-                    "related_hashes":   data["related"]["hash"]
+                    "downloads":        get_value(d1, ["intelligence", "downloads"]),
+                    "uploads":          get_value(d1, ["intelligence", "uploads"]),
+                    "tags":             get_value(d1, ["tags"]),
+                    "geo":              get_value(d2, ["geo", "country_iso_code"]),
+                    "first-seen":       get_value(d2, ["first_seen"]),
+                    "extension":        get_value(d2, ["file", "extension"]),
+                    "size":             get_value(d2, ["file", "size"]),
+                    "mime":             get_value(d2, ["file", "mime_type"]),
+                    "hashes":           get_value(d2, ["file", "hash"]),
+                    "name":             get_value(d2, ["file", "name"]),
+                    "type":             get_value(d2, ["type"]),
+                    "related_hashes":   get_value(data, ["related", "hash"]),
                 }
             elif source_key == "malware":
                 rest_data = {
-                    "virustotal_result":d1["virustotal"]["result"],
-                    "virustotal_link":  d1["virustotal"]["link"],
-                    "first-seen":       d2["first_seen"],
-                    "file_type":        d2["file"]["type"],
-                    "size":             d2["file"]["size"],
-                    "hashes":           d2["file"]["hash"],
-                    "type":             d2["type"],
-                    "related_hashes":   data["related"]["hash"]
+                    "virustotal_result": get_value(d1, ["virustotal", "result"]),
+                    "virustotal_link":   get_value(d1, ["virustotal", "link"]),
+                    "first-seen":        get_value(d2, ["first_seen"]),
+                    "file_type":         get_value(d2, ["file", "type"]),
+                    "size":              get_value(d2, ["file", "size"]),
+                    "hashes":            get_value(d2, ["file", "hash"]),
+                    "type":              get_value(d2, ["type"]),
+                    "related_hashes":    get_value(data, ["related", "hash"]),
                 }
             else:
                 print(f'[!] Error, could not find key {source_key}!')
@@ -125,40 +168,6 @@ class ESMISPSYNC:
                 ti_data[key] = rest_data[key]
             
         return ti_data
-
-
-def value_exists_in_result_data(search_value, result_data):
-    for entry in result_data:
-        if entry.get('values') == search_value:
-            return True
-    return False
-
-
-def identify_hash(hash_value):
-    # Dictionary zum Speichern von möglichen Hash-Längen und deren Typen
-    hash_types = {
-        32: 'md5',
-        40: 'sha1',
-        64: 'sha256',
-        96: 'sha384',
-        128: 'sha512'
-    }
-    
-    # Erkennung von TLSH (length is typically 70+)
-    if re.match(r'^[A-F0-9]{70,}$', hash_value):
-        return 'tlsh'
-    
-    # Erkennung von SSDEEP (contains a ':' character)
-    if ':' in hash_value:
-        return 'ssdeep'
-    
-    # Identifizierung durch Länge des Hash-Werts
-    hash_length = len(hash_value)
-    if hash_length in hash_types:
-        return hash_types[hash_length]
-    
-    # Wenn kein Typ erkannt wird
-    return 'unknown'
 
 
 def handler(q=False):
